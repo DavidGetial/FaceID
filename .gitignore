@@ -1,16 +1,13 @@
-﻿# Python / entorno virtual
+﻿# Entorno virtual (no se versiona, regenerable con pip)
 venv/
+
+# Bytecode de Python
 __pycache__/
 *.pyc
 *.pyo
 *.pyd
 
-# Datos sensibles / generados en ejecución
-database/samples/
-database/*_backup*.json
-database/access_log.json
-
-# Archivos temporales
+# Archivos temporales del sistema
 *.log
 *.tmp
 .DS_Store

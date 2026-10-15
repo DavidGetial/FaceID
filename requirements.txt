@@ -1,0 +1,9 @@
+fastapi>=0.110
+uvicorn[standard]>=0.29
+pydantic>=2.0
+opencv-python>=4.9
+numpy>=1.26
+deepface>=0.0.90
+mtcnn>=1.0.0
+Pillow>=10.0
+python-multipart>=0.0.9
