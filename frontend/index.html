@@ -1,0 +1,642 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>NeoFace ID • ProCore</title>
+    <style>
+        :root {
+            --bg: #050a18;
+            --bg2: #0c1630;
+            --cyan: #00f0ff;
+            --violet: #7c3aed;
+            --green: #10f0a0;
+            --red: #ff3b6b;
+            --amber: #ffb347;
+            --glass: rgba(12, 20, 40, 0.72);
+            --text: #e8f1ff;
+            --muted: #7fa3c7;
+        }
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        html, body { height: 100%; }
+        body {
+            font-family: "Segoe UI", system-ui, -apple-system, sans-serif;
+            background: radial-gradient(1200px 800px at 20% -10%, #1a2a5a 0%, transparent 60%),
+                        radial-gradient(1000px 700px at 100% 100%, #2a104a 0%, transparent 55%),
+                        linear-gradient(180deg, var(--bg) 0%, #02040a 100%);
+            color: var(--text);
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 20px;
+            overflow-x: hidden;
+        }
+        .orb { position: fixed; border-radius: 50%; filter: blur(80px); opacity: 0.35; pointer-events: none; z-index: 0; }
+        .orb.a { width: 360px; height: 360px; background: var(--cyan); top: -80px; left: -100px; animation: float 10s ease-in-out infinite; }
+        .orb.b { width: 420px; height: 420px; background: var(--violet); bottom: -120px; right: -120px; animation: float 12s ease-in-out infinite reverse; }
+        @keyframes float { 0%,100%{transform:translate(0,0)} 50%{transform:translate(40px,-30px)} }
+
+        .shell {
+            position: relative;
+            z-index: 1;
+            width: 100%;
+            max-width: 560px;
+            background: var(--glass);
+            border: 1px solid rgba(0,240,255,0.18);
+            border-radius: 28px;
+            backdrop-filter: blur(18px);
+            box-shadow: 0 30px 80px rgba(0,0,0,0.6), 0 0 40px rgba(0,240,255,0.12);
+            padding: 22px;
+        }
+        header { text-align: center; margin-bottom: 16px; }
+        header .badge { display: inline-block; font-size: 0.72rem; letter-spacing: 2px; color: var(--cyan); border: 1px solid rgba(0,240,255,0.4); padding: 4px 12px; border-radius: 999px; margin-bottom: 8px; }
+        header h1 { font-size: 1.9rem; font-weight: 800; background: linear-gradient(90deg,var(--cyan),var(--violet)); -webkit-background-clip: text; background-clip: text; color: transparent; }
+        header p { color: var(--muted); font-size: 0.85rem; margin-top: 4px; }
+
+        .tabs { display: flex; gap: 6px; background: rgba(5,10,24,0.6); border-radius: 14px; padding: 4px; margin-bottom: 14px; }
+        .tab-btn { flex: 1; padding: 10px; border: none; background: transparent; color: var(--muted); font-weight: 700; border-radius: 11px; cursor: pointer; transition: all .25s; font-size: 0.9rem; }
+        .tab-btn.active { background: linear-gradient(90deg,var(--cyan),var(--violet)); color: #021018; box-shadow: 0 4px 16px rgba(0,240,255,0.4); }
+
+        .camera-card {
+            position: relative;
+            border-radius: 24px;
+            overflow: hidden;
+            background: #000;
+            border: 1px solid rgba(0,240,255,0.18);
+            margin-bottom: 14px;
+            box-shadow: 0 0 30px rgba(0,240,255,0.1);
+        }
+        .video-wrapper { position: relative; width: 100%; height: 320px; }
+        video { width: 100%; height: 100%; object-fit: cover; transform: scaleX(-1); }
+        /* circular progress ring around oval */
+        .ring {
+            position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%);
+            width: 232px; height: 292px; pointer-events: none;
+        }
+        .ring svg { width: 100%; height: 100%; }
+        .ring .track { fill: none; stroke: rgba(255,255,255,0.12); stroke-width: 6; }
+        .ring .progress { fill: none; stroke: var(--cyan); stroke-width: 6; stroke-linecap: round;
+            stroke-dasharray: 700; stroke-dashoffset: 700; transition: stroke-dashoffset .4s ease, stroke .3s; filter: drop-shadow(0 0 8px var(--cyan)); }
+        .ring .progress.green { stroke: var(--green); filter: drop-shadow(0 0 10px var(--green)); }
+        .ring .progress.red { stroke: var(--red); filter: drop-shadow(0 0 10px var(--red)); }
+
+        .oval-mask {
+            position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%);
+            width: 210px; height: 270px; border-radius: 999px;
+            border: 2px solid rgba(0,240,255,0.5);
+            box-shadow: inset 0 0 30px rgba(0,240,255,0.12);
+            transition: all .3s ease; pointer-events: none;
+        }
+        .oval-mask.green { border-color: var(--green); box-shadow: 0 0 30px rgba(16,240,160,0.5), inset 0 0 20px rgba(16,240,160,0.2); }
+        .oval-mask.red { border-color: var(--red); box-shadow: 0 0 30px rgba(255,59,107,0.5), inset 0 0 20px rgba(255,59,107,0.2); animation: shake .4s; }
+        @keyframes shake { 0%,100%{transform:translate(-50%,-50%)} 25%{transform:translate(-52%,-50%)} 75%{transform:translate(-48%,-50%)} }
+
+        .hud {
+            position: absolute; left: 12px; right: 12px; bottom: 12px;
+            background: rgba(5,10,24,0.78); border: 1px solid rgba(0,240,255,0.2);
+            border-radius: 14px; padding: 10px 14px; display: flex; align-items: center; gap: 10px;
+            backdrop-filter: blur(10px);
+        }
+        .hud .dot { width: 10px; height: 10px; border-radius: 50%; background: var(--cyan); box-shadow: 0 0 10px var(--cyan); animation: pulse 1.4s infinite; }
+        .hud .dot.green { background: var(--green); box-shadow: 0 0 12px var(--green); animation: none; }
+        .hud .dot.red { background: var(--red); box-shadow: 0 0 12px var(--red); animation: none; }
+        @keyframes pulse { 0%,100%{opacity:1;transform:scale(1)} 50%{opacity:.4;transform:scale(1.4)} }
+        .hud .txt { flex: 1; font-size: 0.85rem; font-weight: 600; }
+
+        .panel { display: flex; flex-direction: column; gap: 12px; }
+        input { width: 100%; padding: 13px 14px; background: rgba(5,10,24,0.7); border: 1px solid rgba(0,240,255,0.18); border-radius: 12px; color: var(--text); font-size: 0.95rem; transition: border .2s; }
+        input:focus { outline: none; border-color: var(--cyan); box-shadow: 0 0 0 3px rgba(0,240,255,0.15); }
+
+        .btn {
+            padding: 15px 18px; border: none; border-radius: 14px; font-weight: 800; font-size: 1rem;
+            cursor: pointer; transition: transform .15s, box-shadow .2s, filter .2s;
+            position: relative; overflow: hidden;
+        }
+        .btn:active { transform: scale(0.97); }
+        .btn.primary { background: linear-gradient(90deg,var(--cyan),var(--violet)); color: #021018; box-shadow: 0 8px 24px rgba(0,240,255,0.35); }
+        .btn.success { background: linear-gradient(90deg,var(--green),#06b6d4); color: #021814; box-shadow: 0 8px 24px rgba(16,240,160,0.35); }
+        .btn.warn { background: linear-gradient(90deg,var(--amber),var(--red)); color: #1a0a02; box-shadow: 0 8px 24px rgba(255,179,71,0.35); }
+        .btn.ghost { background: rgba(5,10,24,0.6); color: var(--text); border: 1px solid rgba(255,255,255,0.12); }
+
+        .status { padding: 14px 16px; border-radius: 14px; font-size: 0.88rem; display: none; line-height: 1.4; border: 1px solid; }
+        .status.show { display: block; }
+        .status.denied { background: rgba(255,59,107,0.12); border-color: var(--red); color: #ffc1d1; }
+        .status.uncertain { background: rgba(255,179,71,0.12); border-color: var(--amber); color: #ffe3b3; }
+        .status.success { background: rgba(16,240,160,0.12); border-color: var(--green); color: #b6ffe3; }
+
+        .muted { color: var(--muted); font-size: 0.78rem; line-height: 1.4; }
+
+        table { width: 100%; border-collapse: collapse; }
+        th, td { padding: 9px 6px; text-align: left; border-bottom: 1px solid rgba(255,255,255,0.08); font-size: 0.82rem; }
+        th { color: var(--muted); font-weight: 700; text-transform: uppercase; font-size: 0.72rem; letter-spacing: 0.5px; }
+        .danger-btn { padding: 6px 10px; border: none; border-radius: 8px; background: rgba(255,59,107,0.2); color: var(--red); font-weight: 700; cursor: pointer; border: 1px solid rgba(255,59,107,0.4); transition: all .2s; }
+        .danger-btn:hover { background: var(--red); color: #fff; }
+
+        .modal-overlay { position: fixed; inset: 0; background: rgba(2,4,10,0.88); backdrop-filter: blur(12px); display: none; align-items: center; justify-content: center; z-index: 100; animation: fadeIn .25s; }
+        @keyframes fadeIn { from{opacity:0} to{opacity:1} }
+        .modal-card { background: linear-gradient(180deg, rgba(12,20,40,0.95), rgba(5,10,24,0.98)); border: 1px solid rgba(16,240,160,0.35); border-radius: 28px; padding: 26px; max-width: 460px; width: 92%; text-align: center; box-shadow: 0 0 60px rgba(16,240,160,0.25); animation: popIn .35s ease-out; }
+        @keyframes popIn { 0%{transform:scale(.85);opacity:0} 100%{transform:scale(1);opacity:1} }
+        .modal-title { font-size: 1.6rem; font-weight: 800; background: linear-gradient(90deg,var(--green),var(--cyan)); -webkit-background-clip: text; background-clip: text; color: transparent; }
+        .gallery { display: flex; gap: 8px; justify-content: center; margin: 16px 0; flex-wrap: wrap; }
+        .gallery img { width: 88px; height: 116px; object-fit: cover; border-radius: 10px; border: 2px solid var(--green); }
+        .metric { font-size: 0.85rem; color: var(--muted); margin-top: 8px; }
+        .close-btn { margin-top: 14px; padding: 10px 26px; border: none; border-radius: 10px; background: rgba(255,255,255,0.08); color: var(--text); font-weight: 700; cursor: pointer; border: 1px solid rgba(255,255,255,0.15); }
+
+        .pulse-ring { position: absolute; top: 50%; left: 50%; transform: translate(-50%,-50%); width: 210px; height: 270px; border-radius: 999px; border: 2px solid var(--cyan); opacity: .4; animation: pulseRing 2.2s infinite; pointer-events: none; }
+        @keyframes pulseRing { 0%{transform:translate(-50%,-50%) scale(1);opacity:.55} 100%{transform:translate(-50%,-50%) scale(1.25);opacity:0} }
+
+        .scanline { position: absolute; left: 0; right: 0; height: 2px; background: linear-gradient(90deg, transparent, var(--cyan), transparent); top: 50%; opacity: .35; pointer-events: none; }
+        /* Animaciones desactivadas (modo sobrio) */
+        *, *::before, *::after { animation: none !important; transition: none !important; }
+        @keyframes scan { 0%{top:0} 100%{top:100%} }
+    </style>
+</head>
+<body>
+    <div class="orb a"></div>
+    <div class="orb b"></div>
+
+    <div class="shell">
+        <header>
+            <span class="badge">PROCORE • BIOMETRIC ENGINE</span>
+            <h1>NeoFace ID</h1>
+            <p>Autenticación facial adaptativa en tiempo real</p>
+        </header>
+
+        <div class="tabs">
+            <button class="tab-btn active" id="tabVerify" onclick="setMode('verify')">Autenticación</button>
+            <button class="tab-btn" id="tabAdmin" onclick="setMode('admin')">Registrar FaceID</button>
+            <button class="tab-btn" id="tabHistory" onclick="setMode('history')">Historial</button>
+        </div>
+
+        <div class="camera-card">
+            <div class="video-wrapper">
+                <video id="webcam" autoplay playsinline muted></video>
+                <div class="pulse-ring"></div>
+                <div class="ring">
+                    <svg viewBox="0 0 232 292">
+                        <ellipse class="track" cx="116" cy="146" rx="100" ry="130"/>
+                        <ellipse id="ringProgress" class="progress" cx="116" cy="146" rx="100" ry="130"/>
+                    </svg>
+                </div>
+                <div class="oval-mask" id="ovalFrame"></div>
+                <div class="scanline"></div>
+                <div class="hud">
+                    <div class="dot" id="hudDot"></div>
+                    <div class="txt" id="stepLabel">Ubica tu rostro al centro</div>
+                </div>
+            </div>
+            <canvas id="snapshot" style="display:none;"></canvas>
+        </div>
+
+        <div class="panel" id="verifyPanel">
+            <button class="btn primary" onclick="submitVerification()">Verificar Rostro</button>
+            <div class="status" id="statusBox"></div>
+        </div>
+
+        <div class="panel" id="adminPanel" style="display:none;">
+            <input type="text" id="admName" placeholder="Nombre de la persona">
+            <input type="text" id="admRole" placeholder="Rol o etiqueta (opcional)">
+            <button class="btn success" onclick="toggleRecording()" id="recordBtn">Registrar FaceID (25 fotos ~18s)</button>
+            <p class="muted" id="enrollInfo">Pulsa el botón, muévete una vez a frente/izquierda/derecha, toma 25 fotos automáticamente.</p>
+            <p class="muted" id="recordInfo">Detenido.</p>
+            <button class="btn ghost" onclick="loadUsers()">Actualizar lista</button
+            <table>
+                <thead><tr><th>ID</th><th>Nombre</th><th>Rol</th><th></th></tr></thead>
+                <tbody id="userTable"></tbody>
+            </table>
+            <div class="status" id="adminStatus"></div>
+        </div>
+
+        <div class="panel" id="historyPanel" style="display:none;">
+            <button class="btn ghost" onclick="loadHistory()">Actualizar historial</button>
+            <a class="btn ghost" href="/api/export/users">Exportar usuarios CSV</a>
+            <a class="btn ghost" href="/api/export/history">Exportar historial CSV</a>
+            <table>
+                <thead><tr><th>Hora</th><th>Acceso</th><th>Usuario</th><th>Confianza</th></tr></thead>
+                <tbody id="historyTable"></tbody>
+            </table>
+        </div>
+    </div>
+
+    <div class="modal-overlay" id="successModal">
+        <div class="modal-card">
+            <div class="modal-title" id="modalTitle">¡Bienvenido!</div>
+            <p id="modalSubtitle" style="color:var(--muted);margin-top:6px;font-size:0.9rem;"></p>
+            <div class="gallery" id="modalGallery"></div>
+            <p class="metric" id="modalMetrics"></p>
+            <button class="close-btn" onclick="closeModal()">Continuar</button>
+        </div>
+    </div>
+
+    <script>
+        const video = document.getElementById('webcam');
+        const canvas = document.getElementById('snapshot');
+        const stepLabel = document.getElementById('stepLabel');
+        const ovalFrame = document.getElementById('ovalFrame');
+        const ringProgress = document.getElementById('ringProgress');
+        const hudDot = document.getElementById('hudDot');
+        const statusBox = document.getElementById('statusBox');
+        const adminStatus = document.getElementById('adminStatus');
+
+        async function initCamera() {
+            try {
+                const stream = await navigator.mediaDevices.getUserMedia({ video: { width: { ideal: 640 }, height: { ideal: 480 }, facingMode: "user" } });
+                video.srcObject = stream;
+            } catch (err) { alert("Error de cámara: " + err.message); }
+        }
+        initCamera();
+
+        function setMode(mode) {
+            statusBox.style.display = 'none';
+            adminStatus.style.display = 'none';
+            setOvalColor('default');
+            if (mode === 'verify') {
+                document.getElementById('verifyPanel').style.display = 'flex';
+                document.getElementById('adminPanel').style.display = 'none';
+                document.getElementById('historyPanel').style.display = 'none';
+                document.getElementById('tabVerify').classList.add('active');
+                document.getElementById('tabAdmin').classList.remove('active');
+                document.getElementById('tabHistory').classList.remove('active');
+                stepLabel.innerText = "Ubica tu rostro al centro";
+            } else if (mode === 'admin') {
+                document.getElementById('verifyPanel').style.display = 'none';
+                document.getElementById('adminPanel').style.display = 'flex';
+                document.getElementById('historyPanel').style.display = 'none';
+                document.getElementById('tabVerify').classList.remove('active');
+                document.getElementById('tabAdmin').classList.add('active');
+                document.getElementById('tabHistory').classList.remove('active');
+                stepLabel.innerText = "Modo registro NeoFace";
+                loadUsers();
+            } else {
+                document.getElementById('verifyPanel').style.display = 'none';
+                document.getElementById('adminPanel').style.display = 'none';
+                document.getElementById('historyPanel').style.display = 'flex';
+                document.getElementById('tabVerify').classList.remove('active');
+                document.getElementById('tabAdmin').classList.remove('active');
+                document.getElementById('tabHistory').classList.add('active');
+                stepLabel.innerText = "Historial de accesos";
+                loadHistory();
+            }
+        }
+
+        function setOvalColor(color) {
+            ovalFrame.className = 'oval-mask' + (color === 'green' ? ' green' : color === 'red' ? ' red' : '');
+            ringProgress.className = 'progress' + (color === 'green' ? ' green' : color === 'red' ? ' red' : '');
+            hudDot.className = 'dot' + (color === 'green' ? ' green' : color === 'red' ? ' red' : '');
+            if (color === 'default') ringProgress.style.strokeDashoffset = '700';
+        }
+
+        function setRingProgress(pct) {
+            // circumferencia aproximada del elipse ~ 700
+            const offset = 700 - (700 * pct / 100);
+            ringProgress.style.strokeDashoffset = offset;
+        }
+
+        function captureBlob() {
+            return new Promise((resolve) => {
+                canvas.width = video.videoWidth || 640;
+                canvas.height = video.videoHeight || 480;
+                const ctx = canvas.getContext('2d');
+                ctx.save(); ctx.translate(canvas.width, 0); ctx.scale(-1, 1);
+                ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+                ctx.restore();
+                canvas.toBlob(blob => resolve({ blob, dataUrl: canvas.toDataURL('image/jpeg') }), 'image/jpeg', 0.95);
+            });
+        }
+        const wait = ms => new Promise(res => setTimeout(res, ms));
+
+        let isRecording = false;
+        let isBusy = false;
+        let _usersCache = [];
+        let faceFirstSeen = 0;
+        let autoCooldownUntil = 0;
+        function resetOval() {
+            ovalFrame.style.left = '50%';
+            ovalFrame.style.top = '50%';
+            ovalFrame.style.width = '210px';
+            ovalFrame.style.height = '270px';
+            ovalFrame.style.transform = 'translate(-50%, -50%)';
+        }
+
+        // Feedback dinámico
+        (function faceFeedbackLoop() {
+            setTimeout(async function loop() {
+                if (!isBusy && !isRecording) {
+                    try {
+                        const frame = await captureBlob();
+                        const fd = new FormData();
+                        fd.append('file', frame.blob, 'check.jpg');
+                        const res = await fetch('/api/face-check', { method: 'POST', body: fd });
+                        const data = await res.json();
+                        if (data.status === 'face') {
+                            setOvalColor('green');
+                            if (data.box) {
+                                const b = data.box;
+                                const left = b.x * 100;
+                                const top = b.y * 100;
+                                const wPct = Math.max(12, b.w * 100 * 1.35);
+                                const hPct = Math.max(16, b.h * 100 * 1.25);
+                                ovalFrame.style.left = (left + wPct / 2) + '%';
+                                ovalFrame.style.top = (top + hPct / 2) + '%';
+                                ovalFrame.style.width = wPct + '%';
+                                ovalFrame.style.height = hPct + '%';
+                                ovalFrame.style.transform = 'translate(-50%, -50%)';
+                            }
+                            stepLabel.innerText = "Rostro detectado ✓";
+                            setRingProgress(100);
+                            if (!faceFirstSeen) faceFirstSeen = Date.now();
+                            // No auto-verificación: el reconocimiento se hace solo al pulsar el botón.
+                        } else {
+                            faceFirstSeen = 0;
+                            resetOval();
+                            setOvalColor('red');
+                            stepLabel.innerText = (data.tip || "Ubica tu rostro al centro");
+                            setRingProgress(0);
+                        }
+                    } catch (e) { }
+                }
+                setTimeout(loop, 1300);
+            }, 1400);
+        })();
+
+        async function submitVerification() {
+            isBusy = true;
+            statusBox.style.display = 'none';
+            statusBox.classList.remove('show');
+            setOvalColor('default');
+            stepLabel.innerText = "Parpadea y mira a la cámara (verificando vida)...";
+            const formData = new FormData();
+            let firstFrame = null;
+            for (let i = 0; i < 6; i++) {
+                const f = await captureBlob();
+                if (!firstFrame) firstFrame = f;
+                formData.append('files', f.blob, `verify-${i}.jpg`);
+                setRingProgress(((i + 1) / 6) * 100);
+                await wait(150);
+            }
+            try {
+                const res = await fetch('/api/recognize', { method: 'POST', body: formData });
+                const data = await res.json();
+                if (data.access === 'GRANTED') {
+                    setOvalColor('green');
+                    setRingProgress(100);
+                    let pics = Array.isArray(data.user.photos) && data.user.photos.length ? data.user.photos.map((p, i) => ({ label: `Frame ${i + 1}`, src: p })) : [{ label: 'Autenticado Ahora', src: firstFrame.dataUrl }];
+                    showSuccessModal(data.user.name, data.user.role || 'Usuario', pics, `¡Bienvenido ${data.user.name}!`, data.confidence);
+                    stepLabel.innerText = `Acceso: ${data.user.name}`;
+                } else if (data.access === 'NO_FACE') {
+                    setOvalColor('red'); setRingProgress(0);
+                    statusBox.className = "status denied show";
+                    statusBox.innerHTML = `⚠️ <strong>Sin Rostro:</strong> ${data.tip}`;
+                    stepLabel.innerText = "Ubícate frente a la cámara";
+                } else if (data.access === 'UNCERTAIN') {
+                    setOvalColor('default'); setRingProgress(50);
+                    statusBox.className = "status uncertain show";
+                    statusBox.innerHTML = `⚠️ <strong>Duda (${data.confidence}%):</strong> ${data.tip}`;
+                    stepLabel.innerText = "Ajusta la posición";
+                } else {
+                    setOvalColor('red'); setRingProgress(0);
+                    statusBox.className = "status denied show";
+                    statusBox.innerHTML = `❌ <strong>Denegado (${data.confidence}%):</strong> ${data.tip}`;
+                    stepLabel.innerText = "No reconocido";
+                }
+            } catch (err) {
+                statusBox.className = "status denied show";
+                statusBox.innerText = "Error de conexión con el servidor: " + err.message;
+            } finally {
+                isBusy = false;
+            }
+        }
+
+        async function enrollSample() {
+            const name = document.getElementById('admName').value.trim();
+            const role = document.getElementById('admRole').value.trim();
+            if (!name) { alert("Ingresa el nombre."); return; }
+            isBusy = true;
+            adminStatus.style.display = 'none';
+            adminStatus.classList.remove('show');
+            setOvalColor('default');
+            stepLabel.innerText = "Capturando ráfaga...";
+            let lastMsg = '';
+            for (let i = 0; i < 3; i++) {
+                const frame = await captureBlob();
+                const formData = new FormData();
+                formData.append('name', name); formData.append('role', role);
+                formData.append('file', frame.blob, `sample-${i}.jpg`);
+                try {
+                    const res = await fetch('/api/enroll', { method: 'POST', body: formData });
+                    const data = await res.json();
+                    if (res.ok) { setOvalColor('green'); setRingProgress(((i+1)/3)*100); lastMsg = data.message; }
+                    else {
+                        setOvalColor('red');
+                        adminStatus.className = "status denied show";
+                        adminStatus.innerText = `⚠️ ${data.detail || 'Error'}`;
+                        stepLabel.innerText = "Error al capturar"; isBusy = false; return;
+                    }
+                } catch (err) {
+                    adminStatus.className = "status denied show";
+                    adminStatus.innerText = "Error de conexión: " + err.message; isBusy = false; return;
+                }
+                await wait(180);
+            }
+            adminStatus.className = "status success show";
+            adminStatus.innerText = `✅ ${lastMsg}`;
+            stepLabel.innerText = "Ráfaga guardada";
+            loadUsers();
+            isBusy = false;
+        }
+
+        async function toggleRecording() {
+            const name = document.getElementById('admName').value.trim();
+            const role = document.getElementById('admRole').value.trim();
+            if (!name) { alert("Ingresa el nombre."); return; }
+            if (isRecording) {
+                isRecording = false;
+                document.getElementById('recordBtn').innerText = "Registrar FaceID (25 fotos ~18s)";
+                document.getElementById('recordInfo').innerText = "Detenido.";
+                isBusy = false;
+                return;
+            }
+            isRecording = true;
+            isBusy = true;
+            const btn = document.getElementById('recordBtn');
+            btn.innerText = "Detener grabación";
+            let total = 0;
+            const guides = ["Mira de frente 👀", "Gira a la izquierda 👈", "Gira a la derecha 👉"];
+            while (isRecording && total < 25) {
+                const guide = guides[total % 3];
+                stepLabel.innerText = `${guide}`;
+                setRingProgress((total / 25) * 100);
+                const frame = await captureBlob();
+                const formData = new FormData();
+                formData.append('name', name); formData.append('role', role);
+                formData.append('file', frame.blob, `bulk-${total}.jpg`);
+                try {
+                    const res = await fetch('/api/enroll', { method: 'POST', body: formData });
+                    const data = await res.json();
+                    if (res.ok) {
+                        total++;
+                        setOvalColor('green');
+                        document.getElementById('recordInfo').innerText = `Grabando... ${total}/25 | Sigue los movimientos ✨`;
+                    } else {
+                        setOvalColor('red');
+                        document.getElementById('recordInfo').innerText = `Error: ${data.detail || 'fallo'}`;
+                        isRecording = false; btn.innerText = "Registrar FaceID (25 fotos ~18s)"; isBusy = false; return;
+                    }
+                } catch (err) {
+                    document.getElementById('recordInfo').innerText = "Error de conexión";
+                    isRecording = false; btn.innerText = "Registrar FaceID (25 fotos ~18s)"; isBusy = false; return;
+                }
+                await wait(50);
+            }
+            isRecording = false;
+            btn.innerText = "Registrar FaceID (25 fotos ~18s)";
+            document.getElementById('recordInfo').innerText = `Listo ✅ ${total} muestras guardadas. Ya casi acabamos.`;
+            setOvalColor('green'); setRingProgress(100);
+            loadUsers();
+            isBusy = false;
+        }
+
+        function viewFramesByName(name) {
+            const u = _usersCache.find(x => x.name === name);
+            const photos = (u && u.photos) || [];
+            if (!photos.length) { alert("Sin frames guardados."); return; }
+            let i = 0;
+            const modal = document.getElementById('successModal');
+            const gallery = document.getElementById('modalGallery');
+            gallery.innerHTML = '';
+            const player = document.createElement('img');
+            player.style.width = '240px'; player.style.height = '320px'; player.style.objectFit = 'cover';
+            player.style.borderRadius = '14px'; player.style.border = '2px solid var(--cyan)';
+            const caption = document.createElement('div');
+            caption.style.color = 'var(--muted)'; caption.style.fontSize = '0.85rem'; caption.style.marginTop = '6px';
+            gallery.appendChild(player); gallery.appendChild(caption);
+            document.getElementById('modalTitle').innerText = name;
+            document.getElementById('modalSubtitle').innerText = `${photos.length} frames`;
+            document.getElementById('modalMetrics').innerText = `Reproducción automática • ${photos.length} capturas`;
+            function show() { player.src = photos[i]; caption.innerText = `Frame ${i + 1}/${photos.length}`; i = (i + 1) % photos.length; }
+            show();
+            if (window._frameShow) clearInterval(window._frameShow);
+            window._frameShow = setInterval(show, 220);
+            modal.style.display = 'flex';
+        }
+        const _origCloseModal = closeModal;
+        closeModal = function() { if (window._frameShow) { clearInterval(window._frameShow); window._frameShow = null; } _origCloseModal(); };
+
+        async function enrollFromFiles() {
+            const name = document.getElementById('admName').value.trim();
+            const role = document.getElementById('admRole').value.trim();
+            const files = document.getElementById('admFiles').files;
+            if (!name) { alert("Ingresa el nombre."); return; }
+            if (!files || !files.length) { alert("Selecciona imágenes."); return; }
+            isBusy = true;
+            adminStatus.className = "status success show";
+            let total = 0;
+            for (let i = 0; i < files.length; i++) {
+                const formData = new FormData();
+                formData.append('name', name); formData.append('role', role);
+                formData.append('file', files[i], files[i].name);
+                try {
+                    const res = await fetch('/api/enroll', { method: 'POST', body: formData });
+                    const data = await res.json();
+                    if (res.ok) { total++; adminStatus.innerText = `Registrando archivos... ${total}/${files.length}`; }
+                    else { adminStatus.className = "status denied show"; adminStatus.innerText = `⚠️ ${data.detail || 'Error en ' + files[i].name}`; isBusy = false; return; }
+                } catch (err) {
+                    adminStatus.className = "status denied show"; adminStatus.innerText = "Error de conexión: " + err.message; isBusy = false; return;
+                }
+                await wait(50);
+            }
+            adminStatus.className = "status success show";
+            adminStatus.innerText = `✅ ${total} imágenes registradas para ${name}.`;
+            loadUsers();
+            isBusy = false;
+        }
+
+        async function loadHistory() {
+            try {
+                const res = await fetch('/api/history');
+                const data = await res.json();
+                const tbody = document.getElementById('historyTable');
+                tbody.innerHTML = '';
+                data.forEach(e => {
+                    const tr = document.createElement('tr');
+                    tr.innerHTML = `<td>${e.time || ''}</td><td>${e.access || ''}</td><td>${e.user || ''}</td><td>${e.confidence || 0}%</td>`;
+                    tbody.appendChild(tr);
+                });
+            } catch (err) { console.error(err); }
+        }
+
+        async function loadUsers() {
+            try {
+                const res = await fetch('/api/users');
+                const users = await res.json();
+                _usersCache = users;
+                const tbody = document.getElementById('userTable');
+                tbody.innerHTML = '';
+                users.forEach(u => {
+                    const thumb = (u.photos && u.photos.length) ? u.photos[0] : '';
+                    const tr = document.createElement('tr');
+                    tr.innerHTML = `
+                        <td>${u.id}</td>
+                        <td><div style="display:flex;align-items:center;gap:8px;"><img src="${thumb}" style="width:36px;height:48px;object-fit:cover;border-radius:6px;border:1px solid rgba(0,240,255,0.3);" onerror="this.style.display='none'"><span>${u.name}<br><span style="font-size:0.7rem;color:var(--muted)">${u.samples || 0} muestras</span></span></div></td>
+                        <td>${u.role || ''}</td>
+                        <td style="white-space:nowrap;">
+                            <button class="btn ghost" style="padding:6px 10px;font-size:0.75rem;" onclick="viewFramesByName('${u.name}')">Ver frames</button>
+                            <button class="danger-btn" onclick="deleteUser('${u.id}')">✕</button>
+                        </td>`;
+                    tbody.appendChild(tr);
+                });
+            } catch (err) { console.error(err); }
+        }
+
+        async function deleteUser(id) {
+            if (!confirm("¿Eliminar esta persona?")) return;
+            await fetch('/api/users/' + id, { method: 'DELETE' });
+            loadUsers();
+        }
+
+        let _slideshow = null;
+        function showSuccessModal(name, role, photos, title, confidence, emotion = null) {
+            document.getElementById('modalTitle').innerText = title;
+            document.getElementById('modalSubtitle').innerText = `${name} • ${role}`;
+            const gallery = document.getElementById('modalGallery');
+            gallery.innerHTML = "";
+            // Reproductor estilo video: una imagen por vez, avanzando automáticamente
+            const player = document.createElement('img');
+            player.style.width = '200px';
+            player.style.height = '260px';
+            player.style.objectFit = 'cover';
+            player.style.borderRadius = '14px';
+            player.style.border = '2px solid var(--green, #10f0a0)';
+            player.style.boxShadow = '0 0 24px rgba(16,240,160,0.4)';
+            gallery.appendChild(player);
+            const caption = document.createElement('div');
+            caption.style.color = 'var(--muted)';
+            caption.style.fontSize = '0.8rem';
+            caption.style.marginTop = '6px';
+            gallery.appendChild(caption);
+            let i = 0;
+            function showFrame() {
+                if (!photos || !photos.length) return;
+                player.src = photos[i].src;
+                caption.innerText = photos[i].label || `Frame ${i + 1}`;
+                i = (i + 1) % photos.length;
+            }
+            showFrame();
+            if (_slideshow) clearInterval(_slideshow);
+            if (photos && photos.length > 1) _slideshow = setInterval(showFrame, 260);
+            let metricText = `Confianza Biométrica: ${confidence}%`;
+            if (emotion) metricText += ` • Emoción: ${emotion}`;
+            document.getElementById('modalMetrics').innerText = metricText;
+            document.getElementById('successModal').style.display = 'flex';
+        }
+        function closeModal() {
+            if (_slideshow) { clearInterval(_slideshow); _slideshow = null; }
+            document.getElementById('successModal').style.display = 'none';
+            setOvalColor('default');
+            setRingProgress(0);
+            resetOval();
+        }
+    </script>
+</body>
+</html>

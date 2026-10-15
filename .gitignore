@@ -1,0 +1,17 @@
+﻿# Python / entorno virtual
+venv/
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+
+# Datos sensibles / generados en ejecución
+database/samples/
+database/*_backup*.json
+database/access_log.json
+
+# Archivos temporales
+*.log
+*.tmp
+.DS_Store
+Thumbs.db
